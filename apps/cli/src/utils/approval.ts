@@ -144,23 +144,30 @@ export async function askQuestionInTerminal(
 
 		rl.question("", (value) => {
 			rl.close();
-			const trimmed = value.trim();
-			const numeric = Number.parseInt(trimmed, 10);
-			if (
-				Number.isInteger(numeric) &&
-				numeric >= 1 &&
-				numeric <= options.length
-			) {
-				resolve(options[numeric - 1] ?? "");
-				return;
-			}
-			if (trimmed.length > 0) {
-				resolve(trimmed);
-				return;
-			}
-			resolve(options[0] ?? "");
+			resolve(resolveQuestionAnswer(value, options));
 		});
 	});
+}
+
+/**
+ * Maps a typed follow-up answer to an option. Only a bare option number picks
+ * an option, so custom answers like "2 files are enough" stay as typed.
+ */
+export function resolveQuestionAnswer(
+	value: string,
+	options: string[],
+): string {
+	const trimmed = value.trim();
+	if (/^\d+$/.test(trimmed)) {
+		const numeric = Number(trimmed);
+		if (numeric >= 1 && numeric <= options.length) {
+			return options[numeric - 1] ?? "";
+		}
+	}
+	if (trimmed.length > 0) {
+		return trimmed;
+	}
+	return options[0] ?? "";
 }
 
 export async function submitAndExitInTerminal(
