@@ -1,6 +1,12 @@
 import type { McpServer } from "@shared/mcp"
 import { describe, expect, it } from "vitest"
-import { getMatchingSlashCommands, getMcpPromptCommands, slashCommandRegex, validateSlashCommand } from "../slash-commands"
+import {
+	getMatchingSlashCommands,
+	getMcpPromptCommands,
+	removeSlashCommand,
+	slashCommandRegex,
+	validateSlashCommand,
+} from "../slash-commands"
 
 // Helper to create a mock MCP server
 function createMockMcpServer(overrides: Partial<McpServer> = {}): McpServer {
@@ -236,6 +242,20 @@ describe("slash-commands", () => {
 			const match = text.match(slashCommandRegex)
 			// Should not match because / is not preceded by whitespace or start
 			expect(match).toBeNull()
+		})
+	})
+
+	describe("removeSlashCommand", () => {
+		it("should remove the command and the space right after it", () => {
+			const result = removeSlashCommand("/newtask and more", 8)
+			expect(result.newText).toBe("and more")
+			expect(result.newPosition).toBe(0)
+		})
+
+		it("should keep later spaces when the command is followed by punctuation", () => {
+			const result = removeSlashCommand("Run /newtask! And more", 12)
+			expect(result.newText).toBe("Run ! And more")
+			expect(result.newPosition).toBe(4)
 		})
 	})
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { insertMention, insertMentionDirectly } from "../context-mentions"
+import { insertMention, insertMentionDirectly, removeMention } from "../context-mentions"
 
 describe("context-mentions", () => {
 	describe("insertMention", () => {
@@ -102,6 +102,28 @@ describe("context-mentions", () => {
 
 			expect(result.newValue).toBe("Check @git-changes ")
 			expect(result.mentionIndex).toBe(6)
+		})
+	})
+
+	describe("removeMention", () => {
+		it("should remove the mention and the space right after it", () => {
+			const text = "See @/file.ts and more"
+			const position = 13
+
+			const result = removeMention(text, position)
+
+			expect(result.newText).toBe("See and more")
+			expect(result.newPosition).toBe(4)
+		})
+
+		it("should keep later spaces when the mention is followed by punctuation", () => {
+			const text = "See @/file.ts! And more"
+			const position = 13
+
+			const result = removeMention(text, position)
+
+			expect(result.newText).toBe("See ! And more")
+			expect(result.newPosition).toBe(4)
 		})
 	})
 })

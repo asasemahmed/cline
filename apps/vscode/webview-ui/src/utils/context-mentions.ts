@@ -70,7 +70,7 @@ export function removeMention(text: string, position: number): { newText: string
 
 	if (matchEnd) {
 		// If we're at the end of a mention, remove it
-		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(" ", "") // removes the first space after the mention
+		const newText = text.slice(0, position - matchEnd[0].length) + afterCursor.replace(/^ /, "") // removes the space right after the mention
 		const newPosition = position - matchEnd[0].length
 		return { newText, newPosition }
 	}
