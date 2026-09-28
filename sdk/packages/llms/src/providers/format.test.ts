@@ -103,6 +103,28 @@ describe("extractErrorMessage", () => {
 		).toBe("upstream rejected the request");
 	});
 
+	it("stops at cyclic cause chains instead of overflowing the stack", () => {
+		const selfCaused = new Error("upstream 500");
+		selfCaused.cause = selfCaused;
+		expect(extractErrorMessage(selfCaused)).toBe("upstream 500");
+
+		const wrapper = new TypeError("fetch failed");
+		wrapper.cause = new Error("other side closed", { cause: wrapper });
+		expect(extractErrorMessage(wrapper)).toBe(
+			"fetch failed: other side closed",
+		);
+
+		const outer: Record<string, unknown> = { message: "outer" };
+		outer.cause = { message: "inner", cause: outer };
+		expect(extractErrorMessage(outer)).toBe("inner");
+
+		const echoed = Object.assign(new Error("Bad Request"), {
+			responseBody: {} as Record<string, unknown>,
+		});
+		echoed.responseBody.responseBody = echoed;
+		expect(extractErrorMessage(echoed)).toBe("Bad Request");
+	});
+
 	it("falls back to JSON instead of [object Object] for opaque objects", () => {
 		expect(extractErrorMessage({ status: 502 })).toBe('{"status":502}');
 	});

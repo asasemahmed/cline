@@ -9,6 +9,11 @@ export function extractErrorMessage(error: unknown): string {
 	const isGenericWrapperMessage = (message: string): boolean =>
 		GENERIC_WRAPPER_MESSAGES.has(message.trim().toLowerCase());
 
+	// `cause`, `errors` and `responseBody` links can form cycles (e.g.
+	// `err.cause = err`). Visit each object once so a cycle ends the walk
+	// instead of overflowing the stack and hiding the real provider error.
+	const seen = new WeakSet<object>();
+
 	const hasErrorMessage = (
 		value: unknown,
 	): value is { error_message: unknown } =>
@@ -58,7 +63,7 @@ export function extractErrorMessage(error: unknown): string {
 				return nested;
 			}
 		}
-		if ("responseBody" in payload && payload.responseBody !== value) {
+		if ("responseBody" in payload) {
 			const nested = extractStructuredMessage(payload.responseBody);
 			if (nested) {
 				return nested;
@@ -83,6 +88,10 @@ export function extractErrorMessage(error: unknown): string {
 		if (typeof value !== "object") {
 			return undefined;
 		}
+		if (seen.has(value)) {
+			return undefined;
+		}
+		seen.add(value);
 		if (value instanceof Error) {
 			const message = value.message.trim();
 			const detailMessage = extractStructuredDetail(value);
@@ -127,7 +136,7 @@ export function extractErrorMessage(error: unknown): string {
 			return detail;
 		}
 		const payload = value as { cause?: unknown; message?: string };
-		if ("cause" in payload && payload.cause !== value) {
+		if ("cause" in payload) {
 			const nested = extractStructuredMessage(payload.cause);
 			if (nested) {
 				return nested;
