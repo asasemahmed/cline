@@ -72,14 +72,15 @@ export function mergeScheduleDeliveryMetadata(
 export function mergeScheduleAutonomousMetadata(
 	base: Record<string, unknown> | undefined,
 	autonomous: {
-		autonomous?: true;
+		autonomous?: boolean;
 		noAutonomous?: true;
 		idleTimeout?: string;
 		pollInterval?: string;
 	},
 ): Record<string, unknown> | undefined {
-	const autonomousEnabled = !!autonomous.autonomous;
-	const autonomousDisabled = !!autonomous.noAutonomous;
+	const autonomousEnabled = autonomous.autonomous === true;
+	const autonomousDisabled =
+		autonomous.autonomous === false || !!autonomous.noAutonomous;
 	const idleTimeoutSeconds = autonomous.idleTimeout;
 	const pollIntervalSeconds = autonomous.pollInterval;
 	if (
@@ -118,7 +119,7 @@ export function hasMetadataPatchOpts(opts: Record<string, unknown>): boolean {
 		!!opts.deliveryThread ||
 		!!opts.deliveryChannel ||
 		!!opts.deliveryBot ||
-		!!opts.autonomous ||
+		typeof opts.autonomous === "boolean" ||
 		!!opts.noAutonomous ||
 		!!opts.idleTimeout ||
 		!!opts.pollInterval
@@ -132,7 +133,7 @@ export function mergeScheduleMetadata(
 		deliveryThread?: string;
 		deliveryChannel?: string;
 		deliveryBot?: string;
-		autonomous?: true;
+		autonomous?: boolean;
 		noAutonomous?: true;
 		idleTimeout?: string;
 		pollInterval?: string;
