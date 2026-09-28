@@ -37,6 +37,9 @@ export function combineApiRequests(messages: ClineMessage[]): ClineMessage[] {
 			let j = i + 1
 
 			while (j < messages.length) {
+				if (messages[j].type === "say" && messages[j].say === "api_req_started") {
+					break
+				}
 				if (messages[j].type === "say" && messages[j].say === "api_req_finished") {
 					let finishedRequest: Record<string, unknown>
 					try {
