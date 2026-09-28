@@ -1,6 +1,6 @@
 import { fstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
 	CliMigrationNotice,
@@ -65,6 +65,10 @@ const kanbanMocks = vi.hoisted(() => ({
 }));
 const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
+}));
+const mcpCommandMocks = vi.hoisted(() => ({
+	runMcpInstallCommand: vi.fn(async () => 0),
+	runMcpUninstallCommand: vi.fn(async () => 0),
 }));
 const connectMocks = vi.hoisted(() => ({
 	formatAdapterList: vi.fn(() => ""),
@@ -218,6 +222,7 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
+vi.mock("./commands/mcp", () => mcpCommandMocks);
 vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
@@ -318,6 +323,10 @@ describe("runCli lightweight command dispatch", () => {
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		mcpCommandMocks.runMcpInstallCommand.mockReset();
+		mcpCommandMocks.runMcpInstallCommand.mockResolvedValue(0);
+		mcpCommandMocks.runMcpUninstallCommand.mockReset();
+		mcpCommandMocks.runMcpUninstallCommand.mockResolvedValue(0);
 		connectMocks.formatAdapterList.mockReset();
 		connectMocks.formatAdapterList.mockReturnValue("");
 		connectMocks.runConnectAdapter.mockReset();
@@ -422,6 +431,113 @@ describe("runCli lightweight command dispatch", () => {
 			expect(wizard).toHaveBeenCalledTimes(name === command ? 1 : 0);
 		}
 		expect(mockState.runAgentCalls).toBe(0);
+	});
+
+	describe("mcp commands with root --data-dir", () => {
+		const sandboxEnvKeys = [
+			"CLINE_SANDBOX",
+			"CLINE_SANDBOX_DATA_DIR",
+			"CLINE_DATA_DIR",
+			"CLINE_DB_DATA_DIR",
+			"CLINE_SESSION_DATA_DIR",
+			"CLINE_TEAM_DATA_DIR",
+			"CLINE_PROVIDER_SETTINGS_PATH",
+			"CLINE_HOOKS_LOG_PATH",
+		] as const;
+		let savedEnv: Record<string, string | undefined> = {};
+		let dataDir: string | undefined;
+
+		beforeEach(() => {
+			savedEnv = {};
+			for (const key of sandboxEnvKeys) {
+				savedEnv[key] = process.env[key];
+				delete process.env[key];
+			}
+			dataDir = mkdtempSync(join(tmpdir(), "cline-cli-mcp-data-dir-"));
+		});
+
+		afterEach(() => {
+			for (const key of sandboxEnvKeys) {
+				const value = savedEnv[key];
+				if (value === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = value;
+				}
+			}
+			if (dataDir) {
+				rmSync(dataDir, { recursive: true, force: true });
+				dataDir = undefined;
+			}
+		});
+
+		it("applies --data-dir before running the mcp wizard", async () => {
+			const tmpDir = dataDir as string;
+			let wizardDataDir: string | undefined;
+			wizardMocks.mcp.mockImplementation(async () => {
+				wizardDataDir = process.env.CLINE_DATA_DIR;
+				return 0;
+			});
+			process.argv = ["bun", "src/index.ts", "--data-dir", tmpDir, "mcp"];
+
+			const { runCli } = await import("./main");
+			await runCli();
+
+			expect(wizardMocks.mcp).toHaveBeenCalledTimes(1);
+			expect(wizardDataDir).toBe(resolve(tmpDir));
+		});
+
+		it("applies --data-dir before running mcp install", async () => {
+			const tmpDir = dataDir as string;
+			let installDataDir: string | undefined;
+			mcpCommandMocks.runMcpInstallCommand.mockImplementation(async () => {
+				installDataDir = process.env.CLINE_DATA_DIR;
+				return 0;
+			});
+			process.argv = [
+				"bun",
+				"src/index.ts",
+				"--data-dir",
+				tmpDir,
+				"mcp",
+				"install",
+				"srv",
+				"--yes",
+				"--",
+				"node",
+				"s.js",
+			];
+
+			const { runCli } = await import("./main");
+			await runCli();
+
+			expect(mcpCommandMocks.runMcpInstallCommand).toHaveBeenCalledTimes(1);
+			expect(installDataDir).toBe(resolve(tmpDir));
+		});
+
+		it("applies --data-dir before running mcp uninstall", async () => {
+			const tmpDir = dataDir as string;
+			let uninstallDataDir: string | undefined;
+			mcpCommandMocks.runMcpUninstallCommand.mockImplementation(async () => {
+				uninstallDataDir = process.env.CLINE_DATA_DIR;
+				return 0;
+			});
+			process.argv = [
+				"bun",
+				"src/index.ts",
+				"--data-dir",
+				tmpDir,
+				"mcp",
+				"uninstall",
+				"srv",
+			];
+
+			const { runCli } = await import("./main");
+			await runCli();
+
+			expect(mcpCommandMocks.runMcpUninstallCommand).toHaveBeenCalledTimes(1);
+			expect(uninstallDataDir).toBe(resolve(tmpDir));
+		});
 	});
 
 	it("routes connector restart arguments through the restart lifecycle", async () => {

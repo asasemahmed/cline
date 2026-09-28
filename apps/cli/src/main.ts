@@ -460,10 +460,22 @@ export async function runCli(): Promise<void> {
 			}
 		});
 
+	// Honor the root --data-dir before any MCP settings path is resolved so
+	// reads and writes land under the chosen data dir instead of ~/.cline.
+	const applyRootDataDir = () => {
+		const rootOpts = program.opts<{ cwd?: string; dataDir?: string }>();
+		configureSandboxEnvironment({
+			enabled: !!rootOpts.dataDir || process.env.CLINE_SANDBOX?.trim() === "1",
+			cwd: rootOpts.cwd ?? process.cwd(),
+			explicitDir: rootOpts.dataDir,
+		});
+	};
+
 	const mcpCmd = program
 		.command("mcp")
 		.description("Manage MCP servers")
 		.action(async () => {
+			applyRootDataDir();
 			if (isFullTTY) {
 				const { runMcpWizard } = await import("./wizards/mcp");
 				ctx.exitCode = await runMcpWizard();
@@ -496,6 +508,7 @@ export async function runCli(): Promise<void> {
 				transport?: string;
 				yes?: boolean;
 			}>();
+			applyRootDataDir();
 			const { runMcpInstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpInstallCommand({
 				name,
@@ -518,6 +531,7 @@ export async function runCli(): Promise<void> {
 			const opts = mcpUninstallCmd.opts<{
 				json?: boolean;
 			}>();
+			applyRootDataDir();
 			const { runMcpUninstallCommand } = await import("./commands/mcp");
 			ctx.exitCode = await runMcpUninstallCommand({
 				name,
