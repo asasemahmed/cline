@@ -135,7 +135,7 @@ function detectSource(
 	if (!workspaceRoot) {
 		return "global";
 	}
-	return path.startsWith(workspaceRoot) ? "workspace" : "global";
+	return isPathWithin(workspaceRoot, path) ? "workspace" : "global";
 }
 
 function detectPluginSource(
