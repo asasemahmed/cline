@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { promisify } from "node:util"
 import "should"
-import { getGitDiff } from "../git"
+import { getCommitInfo, getGitDiff } from "../git"
 
 const execAsync = promisify(exec)
 
@@ -102,5 +102,50 @@ describe("getGitDiff", () => {
 		}
 		;(error !== undefined).should.be.true()
 		error!.message.should.equal("No changes in workspace for commit message")
+	})
+})
+
+describe("getCommitInfo", () => {
+	let repoDir: string
+
+	async function git(args: string): Promise<void> {
+		await execAsync(`git ${args}`, { cwd: repoDir })
+	}
+
+	beforeEach(async () => {
+		repoDir = await mkdtemp(path.join(tmpdir(), "cline-git-commit-info-"))
+		await git("init")
+		await git('config user.email "test@example.com"')
+		await git('config user.name "Test"')
+	})
+
+	afterEach(async () => {
+		await rm(repoDir, { recursive: true, force: true })
+	})
+
+	it("preserves multi-line and multi-paragraph commit bodies", async () => {
+		await writeFile(path.join(repoDir, "file.txt"), "content\n")
+		await git("add file.txt")
+
+		const commitBody = [
+			"First paragraph line 1.",
+			"First paragraph line 2.",
+			"",
+			"Second paragraph line 1.",
+			"Second paragraph line 2.",
+		].join("\n")
+
+		const msgFile = path.join(repoDir, "commit-msg.txt")
+		await writeFile(msgFile, `commit subject\n\n${commitBody}\n`)
+		await git(`commit -F "${msgFile}"`)
+
+		const info = await getCommitInfo("HEAD", repoDir)
+
+		info.should.containEql("commit subject")
+		info.should.containEql("First paragraph line 1.")
+		info.should.containEql("First paragraph line 2.")
+		info.should.containEql("Second paragraph line 1.")
+		info.should.containEql("Second paragraph line 2.")
+		info.should.containEql(commitBody)
 	})
 })

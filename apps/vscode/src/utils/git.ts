@@ -130,7 +130,8 @@ export async function getCommitInfo(hash: string, cwd: string): Promise<string> 
 		const { stdout: info } = await execAsync(`git show --format="%H%n%h%n%s%n%an%n%ad%n%b" --no-patch ${hash}`, {
 			cwd,
 		})
-		const [fullHash, shortHash, subject, author, date, body] = info.trim().split("\n")
+		const [fullHash, shortHash, subject, author, date, ...bodyLines] = info.trim().split("\n")
+		const body = bodyLines.join("\n").trim()
 
 		const { stdout: stats } = await execAsync(`git show --stat --format="" ${hash}`, { cwd })
 
