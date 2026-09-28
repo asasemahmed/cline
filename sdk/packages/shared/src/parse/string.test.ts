@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripUtf8Bom, trimNonEmpty } from "./string";
+import { normalizeWindowsText, stripUtf8Bom, trimNonEmpty } from "./string";
 
 describe("trimNonEmpty", () => {
 	it("returns trimmed strings and omits empty values", () => {
@@ -28,5 +28,27 @@ describe("stripUtf8Bom", () => {
 
 	it("handles empty strings", () => {
 		expect(stripUtf8Bom("")).toBe("");
+	});
+});
+
+describe("normalizeWindowsText", () => {
+	it("strips a leading BOM and converts CRLF line endings to LF", () => {
+		expect(
+			normalizeWindowsText("\uFEFF---\r\nname: foo\r\n---\r\nbody\r\n"),
+		).toBe("---\nname: foo\n---\nbody\n");
+	});
+
+	it("leaves LF text without a BOM unchanged", () => {
+		expect(normalizeWindowsText("---\nname: foo\n---\n")).toBe(
+			"---\nname: foo\n---\n",
+		);
+	});
+
+	it("keeps interior BOMs and lone carriage returns", () => {
+		expect(normalizeWindowsText("a\uFEFFb\rc")).toBe("a\uFEFFb\rc");
+	});
+
+	it("handles empty strings", () => {
+		expect(normalizeWindowsText("")).toBe("");
 	});
 });

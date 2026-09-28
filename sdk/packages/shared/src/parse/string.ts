@@ -53,3 +53,15 @@ export function maskSecret(value: string): string {
 export function stripUtf8Bom(text: string): string {
 	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
+
+/**
+ * Undo what Windows editors do to text files: strip the optional leading UTF-8 byte order
+ * mark (see {@link stripUtf8Bom}) and convert CRLF line endings to LF.
+ *
+ * Use it on configuration files users may edit when the parser splits lines or matches
+ * `\n`-delimited fences such as frontmatter `---`. Don't use it on user files handled by
+ * tools or passed to models; those keep their bytes.
+ */
+export function normalizeWindowsText(text: string): string {
+	return stripUtf8Bom(text).replace(/\r\n/g, "\n");
+}

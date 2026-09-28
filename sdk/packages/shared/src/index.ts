@@ -306,6 +306,7 @@ export {
 } from "./parse/shell";
 export {
 	maskSecret,
+	normalizeWindowsText,
 	sanitizeFileName,
 	stripUtf8Bom,
 	trimNonEmpty,
