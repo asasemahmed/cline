@@ -3,6 +3,7 @@ import {
 	buildReadFilesKeys,
 	extractFullOutputText,
 	parseReadFilesInput,
+	shortenPath,
 } from "./tool-parsing";
 
 describe("buildReadFilesKeys", () => {
@@ -95,5 +96,18 @@ describe("extractFullOutputText", () => {
 	it("falls back to pretty JSON for objects without text content", () => {
 		const raw = { structuredContent: { ok: true } };
 		expect(extractFullOutputText(raw)).toBe(JSON.stringify(raw, null, 2));
+	});
+});
+
+describe("shortenPath", () => {
+	it("shortens long Windows paths and returns short Windows paths unchanged", () => {
+		const windowsPath =
+			"C:\\Users\\dev\\projects\\my-app\\src\\components\\widgets\\file-name.ts";
+		expect(shortenPath(windowsPath)).toBe(
+			".../my-app/src/components/widgets/file-name.ts",
+		);
+
+		const shortPath = "C:\\Users\\dev\\file-name.ts";
+		expect(shortenPath(shortPath)).toBe("C:\\Users\\dev\\file-name.ts");
 	});
 });

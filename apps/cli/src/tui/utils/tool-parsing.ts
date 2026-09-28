@@ -352,7 +352,7 @@ export function parseApplyPatchInput(
 
 export function shortenPath(filePath: string, maxLen = 50): string {
 	if (filePath.length <= maxLen) return filePath;
-	const parts = filePath.split("/");
+	const parts = filePath.split(/[\\/]/);
 	const fileName = parts.pop() ?? "";
 	if (fileName.length >= maxLen - 4) return `.../${fileName}`;
 	let result = fileName;
