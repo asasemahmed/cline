@@ -357,15 +357,23 @@ export async function getFileIndex(
 		return existing.pending;
 	}
 
-	const pending = buildIndexInBackground(cwd).then((files) => {
-		CACHE.set(cwd, {
-			files,
-			lastBuiltAt: Date.now(),
-			lastAccessedAt: Date.now(),
-			pending: null,
+	const pending = buildIndexInBackground(cwd)
+		.then((files) => {
+			CACHE.set(cwd, {
+				files,
+				lastBuiltAt: Date.now(),
+				lastAccessedAt: Date.now(),
+				pending: null,
+			});
+			return files;
+		})
+		.catch((error: unknown) => {
+			const entry = CACHE.get(cwd);
+			if (entry?.pending === pending) {
+				entry.pending = null;
+			}
+			throw error;
 		});
-		return files;
-	});
 
 	CACHE.set(cwd, {
 		files: existing?.files ?? new Set<string>(),

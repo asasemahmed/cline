@@ -1,8 +1,32 @@
+import * as childProcess from "node:child_process";
+import * as fsPromises from "node:fs/promises";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { getFileIndex, prewarmFileIndex } from "./file-indexer";
+
+vi.mock("node:child_process", async () => {
+	const actual =
+		await vi.importActual<typeof import("node:child_process")>(
+			"node:child_process",
+		);
+	return {
+		...actual,
+		spawn: vi.fn(actual.spawn),
+	};
+});
+
+vi.mock("node:fs/promises", async () => {
+	const actual =
+		await vi.importActual<typeof import("node:fs/promises")>(
+			"node:fs/promises",
+		);
+	return {
+		...actual,
+		readdir: vi.fn(actual.readdir),
+	};
+});
 
 vi.mock("node:worker_threads", async () => {
 	const actual = await vi.importActual<typeof import("node:worker_threads")>(
@@ -171,6 +195,45 @@ describe("file indexer", () => {
 			vi.useRealTimers();
 			await rm(firstWorkspace, { recursive: true, force: true });
 			await rm(secondWorkspace, { recursive: true, force: true });
+		}
+	});
+
+	it("rebuilds index on next call when previous build rejects", async () => {
+		const cwd = await createTempWorkspace();
+		try {
+			await writeFile(
+				path.join(cwd, "sample.ts"),
+				"export const sample = 1\n",
+				"utf8",
+			);
+
+			const spawnMock = vi.mocked(childProcess.spawn);
+			const readdirMock = vi.mocked(fsPromises.readdir);
+
+			const failure = new Error("EMFILE: too many open files");
+			Object.assign(failure, { code: "EMFILE" });
+
+			spawnMock.mockImplementationOnce(() => {
+				throw failure;
+			});
+			readdirMock.mockRejectedValueOnce(failure);
+
+			await expect(getFileIndex(cwd, { ttlMs: 0 })).rejects.toThrow("EMFILE");
+
+			const index = await getFileIndex(cwd, { ttlMs: 0 });
+			expect(index.has("sample.ts")).toBe(true);
+
+			spawnMock.mockImplementationOnce(() => {
+				throw failure;
+			});
+			readdirMock.mockRejectedValueOnce(failure);
+
+			await expect(getFileIndex(cwd, { ttlMs: 0 })).rejects.toThrow("EMFILE");
+
+			const cached = await getFileIndex(cwd, { ttlMs: 60_000 });
+			expect(cached.has("sample.ts")).toBe(true);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
 		}
 	});
 });
