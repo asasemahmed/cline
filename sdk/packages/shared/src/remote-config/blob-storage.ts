@@ -223,7 +223,7 @@ function createR2Adapter(
 			accessKeyId,
 			secretAccessKey,
 		}),
-		settings.endpoint ?? `https://${accountId}.r2.cloudflarestorage.com`,
+		endpoint || `https://${accountId}.r2.cloudflarestorage.com`,
 		bucket,
 	);
 }

@@ -86,7 +86,7 @@ function createR2Adapter(settings: BlobStoreSettings): StorageAdapter | undefine
 			accessKeyId,
 			secretAccessKey,
 		})
-		const endpoint = settings.endpoint ?? `https://${accountId}.r2.cloudflarestorage.com`
+		const endpoint = settings.endpoint || `https://${accountId}.r2.cloudflarestorage.com`
 		return createAdapter(client, endpoint, bucket)
 	} catch (error) {
 		Logger.error("[StorageAdapter] Failed to create R2 adapter:", error)
