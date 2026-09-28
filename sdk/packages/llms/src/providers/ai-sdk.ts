@@ -1346,7 +1346,10 @@ export function normalizeUsage(
 		// count and part of "output". Cost above is computed from the
 		// pre-subtraction outputTokens, since reasoning tokens are still
 		// billed at the output rate.
-		outputTokens: Math.max(0, normalizedUsage.outputTokens - reasoningTokenCount),
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
@@ -1386,6 +1389,29 @@ function suppressDanglingStreamPromises(
 			// ignore
 		}
 	}
+}
+
+function extractAnthropicReasoningMetadata(
+	part: AiSdkStreamPart,
+): { signature?: string; redactedData?: string } | undefined {
+	const providerMetadata = part.providerMetadata as
+		| Record<string, unknown>
+		| undefined;
+	const anthropic = providerMetadata?.anthropic as
+		| Record<string, unknown>
+		| undefined;
+	const signature =
+		typeof anthropic?.signature === "string" ? anthropic.signature : undefined;
+	const redactedData =
+		typeof anthropic?.redactedData === "string"
+			? anthropic.redactedData
+			: undefined;
+	return signature || redactedData
+		? {
+				...(signature ? { signature } : {}),
+				...(redactedData ? { redactedData } : {}),
+			}
+		: undefined;
 }
 
 function extractGoogleThoughtMetadata(
@@ -1525,17 +1551,30 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
-				if (part.type === "reasoning-delta" || part.type === "reasoning") {
+				if (
+					part.type === "reasoning-start" ||
+					part.type === "reasoning-delta" ||
+					part.type === "reasoning"
+				) {
 					const text =
 						(part.textDelta as string | undefined) ??
 						(part.text as string | undefined) ??
 						(part.reasoning as string | undefined);
-					if (text) {
-						sawVisibleContent = true;
+					// Anthropic streams a thinking block's signature as a
+					// reasoning-delta with empty text, and a redacted_thinking
+					// block only as reasoning-start metadata. Both must reach the
+					// history: replaying manual-thinking tool turns without them
+					// is rejected by the API.
+					const anthropic = extractAnthropicReasoningMetadata(part);
+					if (text || anthropic) {
+						if (text) sawVisibleContent = true;
+						const google = extractGoogleThoughtMetadata(part);
 						yield {
 							type: "reasoning-delta",
-							text,
-							metadata: extractGoogleThoughtMetadata(part),
+							text: text ?? "",
+							...(anthropic?.redactedData ? { redacted: true } : {}),
+							metadata:
+								google || anthropic ? { ...google, ...anthropic } : undefined,
 						};
 					}
 					continue;
