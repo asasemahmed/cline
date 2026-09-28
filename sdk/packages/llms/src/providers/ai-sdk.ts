@@ -1346,11 +1346,43 @@ export function normalizeUsage(
 		// count and part of "output". Cost above is computed from the
 		// pre-subtraction outputTokens, since reasoning tokens are still
 		// billed at the output rate.
-		outputTokens: Math.max(0, normalizedUsage.outputTokens - reasoningTokenCount),
+		outputTokens: Math.max(
+			0,
+			normalizedUsage.outputTokens - reasoningTokenCount,
+		),
 		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
 		...(typeof resolvedTotalCost === "number"
 			? { totalCost: resolvedTotalCost }
 			: {}),
+	};
+}
+
+/** Sums per-step normalized usage into one request-level usage event. */
+function sumNormalizedUsage(
+	steps: readonly GatewayNormalizedUsage[],
+): GatewayNormalizedUsage {
+	let reasoningTokenCount = 0;
+	let totalCost: number | undefined;
+	const total: GatewayNormalizedUsage = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+	};
+	for (const step of steps) {
+		total.inputTokens += step.inputTokens;
+		total.outputTokens += step.outputTokens;
+		total.cacheReadTokens += step.cacheReadTokens;
+		total.cacheWriteTokens += step.cacheWriteTokens;
+		reasoningTokenCount += step.reasoningTokenCount ?? 0;
+		if (step.totalCost !== undefined) {
+			totalCost = (totalCost ?? 0) + step.totalCost;
+		}
+	}
+	return {
+		...total,
+		...(reasoningTokenCount > 0 ? { reasoningTokenCount } : {}),
+		...(totalCost !== undefined ? { totalCost } : {}),
 	};
 }
 
@@ -1482,6 +1514,12 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	// AI SDK 7 sums step usage into `stream.usage` / the finish part's
+	// `totalUsage` and drops each step's `raw` provider usage and
+	// `providerMetadata` while doing so. Normalize every step from its own
+	// `finish-step` part instead, so provider-reported cost and raw-only token
+	// fields survive, including multi-step turns.
+	const stepUsages: GatewayNormalizedUsage[] = [];
 	let streamAborted = false;
 	let sawVisibleContent = false;
 	const mediaBudget = createMediaBudgetState();
@@ -1511,6 +1549,16 @@ async function* emitAiSdkEvents(
 					requestId = Object.entries(part.response?.headers ?? {}).find(
 						([name]) => name.toLowerCase() === "x-request-id",
 					)?.[1];
+					if (part.usage && typeof part.usage === "object") {
+						stepUsages.push(
+							normalizeUsage(
+								part.usage as Record<string, unknown>,
+								part.providerMetadata,
+								pricingValue,
+								request,
+							),
+						);
+					}
 					continue;
 				}
 				if (part.type === "text-delta") {
@@ -1959,8 +2007,8 @@ async function* emitAiSdkEvents(
 		}
 	}
 
-	// Prefer stream.usage (has raw cost data) over finish part usage.
-	// stream.usage may be undefined in mocked/test scenarios, fall back to finish part + its providerMetadata.
+	// stream.usage is the fallback for streams without per-step usage
+	// (mocked/test scenarios), then the finish part + its providerMetadata.
 	let usageToEmit: unknown;
 	let metadataToUse: unknown;
 	if (streamError) {
@@ -1981,7 +2029,9 @@ async function* emitAiSdkEvents(
 		metadataToUse = finishProviderMetadata;
 	}
 
-	if (usageToEmit) {
+	if (stepUsages.length > 0) {
+		yield { type: "usage", usage: sumNormalizedUsage(stepUsages) };
+	} else if (usageToEmit) {
 		yield {
 			type: "usage",
 			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue, request),
