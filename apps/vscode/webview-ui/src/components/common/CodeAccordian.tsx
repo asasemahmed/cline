@@ -2,6 +2,7 @@ import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 import CodeBlock from "@/components/common/CodeBlock"
 import { cn } from "@/lib/utils"
+import { getCodeFence } from "@/utils/codeFence"
 import { getLanguageFromPath } from "@/utils/getLanguageFromPath"
 import { Button } from "../ui/button"
 
@@ -47,6 +48,8 @@ const CodeAccordian = ({
 		}
 		return undefined
 	}, [code])
+
+	const fence = useMemo(() => getCodeFence(code ?? diff), [code, diff])
 
 	return (
 		<div className="bg-code overflow-hidden rounded-xs border border-editor-group-border">
@@ -95,9 +98,9 @@ const CodeAccordian = ({
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (
 				<div className="overflow-x-auto overflow-y-hidden max-w-full">
 					<CodeBlock
-						source={`${"```"}${diff !== undefined ? "diff" : inferredLanguage}\n${(
+						source={`${fence}${diff !== undefined ? "diff" : inferredLanguage}\n${(
 							code ?? diff ?? ""
-						).trim()}\n${"```"}`}
+						).trim()}\n${fence}`}
 					/>
 				</div>
 			)}

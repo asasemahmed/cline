@@ -76,4 +76,15 @@ describe("CommandOutputContent", () => {
 		await act(async () => {})
 		expect(onOutputChange).not.toHaveBeenCalled()
 	})
+
+	it("uses a longer fence when output contains a three-backtick line", () => {
+		const output = "# Setup\n```bash\nnpm install\n```"
+		const { container } = render(
+			<CommandOutputContent isContainerExpanded={true} isOutputFullyExpanded={false} onToggle={vi.fn()} output={output} />,
+		)
+
+		const source = container.querySelector("pre")?.textContent
+		expect(source?.startsWith("````shell\n")).toBe(true)
+		expect(source).toBe(`\`\`\`\`shell\n${output}\n\`\`\`\``)
+	})
 })

@@ -13,6 +13,7 @@ import CodeBlock, { CODE_BLOCK_BG_COLOR } from "@/components/common/CodeBlock"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import { getCodeFence } from "@/utils/codeFence"
 
 interface BrowserSessionRowProps {
 	messages: ClineMessage[]
@@ -334,6 +335,8 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 
 	// Use latest click position while browsing, otherwise use display state
 	const mousePosition = isBrowsing ? latestClickPosition || displayState.mousePosition : displayState.mousePosition
+	const consoleLogs = displayState.consoleLogs || "(No new logs)"
+	const consoleLogsFence = getCodeFence(consoleLogs)
 
 	// let shouldShowCheckpoints = true
 	// if (isLast) {
@@ -442,7 +445,7 @@ const BrowserSessionRow = memo((props: BrowserSessionRowProps) => {
 						<span style={consoleLogsTextStyle}>Console Logs</span>
 					</div>
 					{consoleLogsExpanded && (
-						<CodeBlock source={`${"```"}shell\n${displayState.consoleLogs || "(No new logs)"}\n${"```"}`} />
+						<CodeBlock source={`${consoleLogsFence}shell\n${consoleLogs}\n${consoleLogsFence}`} />
 					)}
 				</div>
 			</div>
@@ -513,13 +516,14 @@ const BrowserSessionRowContent = memo(
 		}, [onToggleExpand, message.ts, setMaxActionHeight])
 
 		if (message.ask === "browser_action_launch" || message.say === "browser_action_launch") {
+			const fence = getCodeFence(message.text)
 			return (
 				<>
 					<div style={headerStyle}>
 						<span style={browserSessionStartedTextStyle}>Browser Session Started</span>
 					</div>
 					<div style={codeBlockContainerStyle}>
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${message.text}\n${"```"}`} />
+						<CodeBlock forceWrap={true} source={`${fence}shell\n${message.text}\n${fence}`} />
 					</div>
 				</>
 			)

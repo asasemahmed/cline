@@ -5,6 +5,7 @@ import { memo, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileServiceClient } from "@/services/grpc-client"
+import { getCodeFence } from "@/utils/codeFence"
 import CodeBlock from "../common/CodeBlock"
 import ExpandHandle from "./ExpandHandle"
 
@@ -60,7 +61,8 @@ export const CommandOutputContent = memo(
 		// Render output with clickable log file path
 		const renderOutput = () => {
 			if (!logFilePath) {
-				return <CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
+				const fence = getCodeFence(output)
+				return <CodeBlock forceWrap={true} source={`${fence}shell\n${output}\n${fence}`} />
 			}
 
 			// Split output into parts: before log path, log path line, after log path
@@ -72,9 +74,14 @@ export const CommandOutputContent = memo(
 			// Extract just the filename from the full path for display
 			const fileName = logFilePath.split("/").pop() || logFilePath
 
+			const beforeFence = getCodeFence(beforeLogPath)
+			const afterFence = getCodeFence(afterLogPath)
+
 			return (
 				<div className="border border-editor-group-border rounded-sm">
-					{beforeLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${beforeLogPath}\n${"```"}`} />}
+					{beforeLogPath && (
+						<CodeBlock forceWrap={true} source={`${beforeFence}shell\n${beforeLogPath}\n${beforeFence}`} />
+					)}
 					<div
 						className="flex flex-wrap items-center gap-1.5 px-3 py-2 mx-2 my-1.5 rounded-sm bg-banner-background cursor-pointer hover:brightness-110 transition-colors"
 						onClick={() => {
@@ -86,7 +93,7 @@ export const CommandOutputContent = memo(
 						<span className="shrink-0">📋 Output is being logged to:</span>
 						<span className="text-vscode-textLink-foreground underline break-all">{fileName}</span>
 					</div>
-					{afterLogPath && <CodeBlock forceWrap={true} source={`${"```"}shell\n${afterLogPath}\n${"```"}`} />}
+					{afterLogPath && <CodeBlock forceWrap={true} source={`${afterFence}shell\n${afterLogPath}\n${afterFence}`} />}
 				</div>
 			)
 		}
@@ -173,6 +180,7 @@ export const CommandOutputRow = memo(
 
 		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+		const commandFence = getCodeFence(command)
 		const showCancelButton =
 			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
@@ -232,15 +240,15 @@ export const CommandOutputRow = memo(
 					)}
 
 					<div className="bg-code opacity-60 text-sm">
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
+						<CodeBlock forceWrap={true} source={`${commandFence}shell\n${command}\n${commandFence}`} />
 					</div>
 
 					{output.length > 0 && (
 						<CommandOutputContent
 							isContainerExpanded={true}
 							isOutputFullyExpanded={isOutputFullyExpanded}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							onOutputChange={onOutputChange}
+							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
 							output={output}
 						/>
 					)}
