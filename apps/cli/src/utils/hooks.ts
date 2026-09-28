@@ -11,6 +11,10 @@ import {
 
 const isDev = process.env.NODE_ENV === "development";
 
+// Tool output is copied into hook payloads sent over the hub socket, so large
+// results (for example base64 image data) are truncated to keep messages small.
+const MAX_HOOK_OUTPUT_SIZE = 50_000;
+
 function currentHookSessionContext(): { rootSessionId: string } | undefined {
 	const session = getActiveCliSession();
 	if (!session) {
@@ -243,12 +247,23 @@ export function createRuntimeHooks(options: {
 				return undefined;
 			},
 			afterTool: async (ctx) => {
+				const serializedOutput =
+					typeof ctx.result.output === "string"
+						? ctx.result.output
+						: JSON.stringify(ctx.result.output);
+				const truncatedOutput =
+					serializedOutput !== undefined &&
+					serializedOutput.length > MAX_HOOK_OUTPUT_SIZE
+						? `${serializedOutput.slice(0, MAX_HOOK_OUTPUT_SIZE)}\n[truncated ${serializedOutput.length - MAX_HOOK_OUTPUT_SIZE} characters]`
+						: undefined;
 				const record = {
 					id: ctx.toolCall.toolCallId,
 					name: ctx.toolCall.toolName,
 					input: ctx.input,
-					output: ctx.result.output,
-					error: ctx.result.isError ? String(ctx.result.output) : undefined,
+					output: truncatedOutput ?? ctx.result.output,
+					error: ctx.result.isError
+						? String(truncatedOutput ?? ctx.result.output)
+						: undefined,
 					durationMs: ctx.durationMs,
 					startedAt: ctx.startedAt,
 					endedAt: ctx.endedAt,
@@ -265,10 +280,7 @@ export function createRuntimeHooks(options: {
 						postToolUse: {
 							toolName: record.name,
 							parameters: mapParams(record.input),
-							result:
-								typeof record.output === "string"
-									? record.output
-									: JSON.stringify(record.output),
+							result: truncatedOutput ?? serializedOutput,
 							success: !record.error,
 							executionTimeMs: record.durationMs,
 						},

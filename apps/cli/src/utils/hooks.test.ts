@@ -65,6 +65,7 @@ async function emitRunStartAndPrompt(
 
 async function emitToolResult(
 	hooks: NonNullable<ReturnType<typeof createRuntimeHooks>["hooks"]>,
+	output: unknown = "ok",
 ): Promise<void> {
 	await hooks.afterTool?.({
 		snapshot: {
@@ -96,7 +97,7 @@ async function emitToolResult(
 			input: { path: "README.md" },
 		},
 		input: { path: "README.md" },
-		result: { output: "ok" },
+		result: { output },
 		startedAt: new Date("2026-01-01T00:00:00.000Z"),
 		endedAt: new Date("2026-01-01T00:00:00.042Z"),
 		durationMs: 42,
@@ -276,5 +277,63 @@ describe("createRuntimeHooks", () => {
 
 		expect(dispatchHookEvent).not.toHaveBeenCalled();
 		expect(outputMocks.write).not.toHaveBeenCalled();
+	});
+
+	it("truncates oversized tool output in tool_result hook payloads", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			dispatchHookEvent,
+		});
+
+		await emitToolResult(runtimeHooks.hooks!, [
+			{ type: "text", text: "Successfully read image" },
+			{
+				type: "image",
+				data: "A".repeat(9 * 1024 * 1024),
+				mediaType: "image/jpeg",
+			},
+		]);
+
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(1);
+		const dispatchedPayload = dispatchHookEvent.mock.calls[0][0];
+		const serializedPayload = JSON.stringify(dispatchedPayload);
+
+		expect(serializedPayload.length).toBeLessThan(1024 * 1024);
+		expect(serializedPayload).toContain("[truncated ");
+		expect(dispatchedPayload.tool_result.output).toBe(
+			dispatchedPayload.postToolUse.result,
+		);
+		expect(dispatchedPayload.tool_result.output).toMatch(
+			/\n\[truncated \d+ characters\]$/,
+		);
+	});
+
+	it("keeps small tool output unchanged in tool_result hook payloads", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const runtimeHooks = createRuntimeHooks({
+			yolo: false,
+			cwd: "/workspace",
+			workspaceRoot: "/workspace",
+			dispatchHookEvent,
+		});
+
+		const smallString = "small output content";
+		await emitToolResult(runtimeHooks.hooks!, smallString);
+
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(1);
+		const stringPayload = dispatchHookEvent.mock.calls[0][0];
+		expect(stringPayload.tool_result.output).toBe(smallString);
+		expect(stringPayload.postToolUse.result).toBe(smallString);
+
+		const smallObject = { text: "small object content", count: 1 };
+		await emitToolResult(runtimeHooks.hooks!, smallObject);
+
+		expect(dispatchHookEvent).toHaveBeenCalledTimes(2);
+		const objectPayload = dispatchHookEvent.mock.calls[1][0];
+		expect(objectPayload.tool_result.output).toBe(smallObject);
+		expect(objectPayload.postToolUse.result).toBe(JSON.stringify(smallObject));
 	});
 });
