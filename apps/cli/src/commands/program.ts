@@ -164,7 +164,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.timeout !== undefined) {
 		const raw = opts.timeout.trim();
 		const parsed = Number.parseInt(raw, 10);
-		if (raw && Number.isInteger(parsed) && parsed >= 1) {
+		if (raw && Number.isInteger(parsed) && parsed >= 0) {
 			result.timeoutSeconds = parsed;
 		} else if (raw) {
 			result.invalidTimeoutSeconds = raw;

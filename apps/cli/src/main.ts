@@ -785,7 +785,7 @@ export async function runCli(): Promise<void> {
 	}
 	if (args.invalidTimeoutSeconds) {
 		writeErr(
-			`invalid timeout "${args.invalidTimeoutSeconds}" (expected integer >= 1)`,
+			`invalid timeout "${args.invalidTimeoutSeconds}" (expected integer >= 0)`,
 		);
 		process.exitCode = 1;
 		return;

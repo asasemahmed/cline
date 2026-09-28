@@ -248,6 +248,22 @@ describe("parseArgs", () => {
 		expect(invalid.invalidTimeoutSeconds).toBe("abc");
 	});
 
+	it("accepts --timeout 0 as no timeout", () => {
+		const parsed = parseArgs(["--timeout", "0"]);
+		expect(parsed.timeoutSeconds).toBe(0);
+		expect(parsed.invalidTimeoutSeconds).toBeUndefined();
+	});
+
+	it("still rejects negative timeout values", () => {
+		const negative = parseArgs(["--timeout", "-1"]);
+		expect(negative.timeoutSeconds).toBeUndefined();
+		expect(negative.invalidTimeoutSeconds).toBe("-1");
+
+		const parsed = parseArgs(["--timeout", "30"]);
+		expect(parsed.timeoutSeconds).toBe(30);
+		expect(parsed.invalidTimeoutSeconds).toBeUndefined();
+	});
+
 	it("records invalid --retries values", () => {
 		const parsed = parseArgs(["--retries", "0"]);
 		expect(parsed.retries).toBeUndefined();
