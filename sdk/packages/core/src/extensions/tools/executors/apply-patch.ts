@@ -313,6 +313,26 @@ function formatSkippedHunkFailure(warnings: readonly PatchWarning[]): string {
 	return lines.join("\n");
 }
 
+async function isSameFile(
+	sourceAbsPath: string,
+	targetAbsPath: string,
+): Promise<boolean> {
+	if (sourceAbsPath === targetAbsPath) {
+		return true;
+	}
+	try {
+		const [sourceStat, targetStat] = await Promise.all([
+			fs.stat(sourceAbsPath),
+			fs.stat(targetAbsPath),
+		]);
+		return (
+			sourceStat.dev === targetStat.dev && sourceStat.ino === targetStat.ino
+		);
+	} catch {
+		return false;
+	}
+}
+
 async function applyChanges(
 	changes: Record<string, PatchFileChange>,
 	cwd: string,
@@ -350,8 +370,14 @@ async function applyChanges(
 						restrictToCwd,
 					);
 					await fs.mkdir(path.dirname(moveAbsPath), { recursive: true });
-					await fs.writeFile(moveAbsPath, change.newContent, { encoding });
-					await fs.rm(sourceAbsPath, { force: true });
+					const sameFile = await isSameFile(sourceAbsPath, moveAbsPath);
+					if (sameFile) {
+						await fs.rename(sourceAbsPath, moveAbsPath);
+						await fs.writeFile(moveAbsPath, change.newContent, { encoding });
+					} else {
+						await fs.writeFile(moveAbsPath, change.newContent, { encoding });
+						await fs.rm(sourceAbsPath, { force: true });
+					}
 					touched.push(`${filePath} -> ${change.movePath}`);
 				} else {
 					await fs.writeFile(sourceAbsPath, change.newContent, { encoding });

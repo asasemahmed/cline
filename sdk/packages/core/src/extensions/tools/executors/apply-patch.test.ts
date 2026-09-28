@@ -297,4 +297,59 @@ describe("createApplyPatchExecutor", () => {
 
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
 	});
+
+	it("preserves file content when moving to the identical path", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, "alpha\nbeta\ngamma", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Update File: note.txt",
+					"*** Move to: note.txt",
+					"@@",
+					" alpha",
+					"-beta",
+					"+BETA",
+					" gamma",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+			"alpha\nBETA\ngamma",
+		);
+	});
+
+	it("preserves file content during a case-only rename", async () => {
+		const filePath = path.join(tempDir, "note.txt");
+		await fs.writeFile(filePath, "alpha\nbeta\ngamma", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await execute(
+			{
+				input: [
+					"*** Update File: note.txt",
+					"*** Move to: Note.txt",
+					"@@",
+					" alpha",
+					"-beta",
+					"+BETA",
+					" gamma",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		const destinationPath = path.join(tempDir, "Note.txt");
+		await expect(fs.readFile(destinationPath, "utf-8")).resolves.toBe(
+			"alpha\nBETA\ngamma",
+		);
+		const files = await fs.readdir(tempDir);
+		expect(files).toEqual(["Note.txt"]);
+	});
 });
