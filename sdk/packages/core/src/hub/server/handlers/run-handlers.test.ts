@@ -2,7 +2,11 @@ import type { HubEventEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeHost } from "../../../runtime/host/runtime-host";
 import { buildHubEvent, type HubTransportContext } from "./context";
-import { handleRunAbort, handleSessionInput } from "./run-handlers";
+import {
+	handleRunAbort,
+	handleSessionHook,
+	handleSessionInput,
+} from "./run-handlers";
 
 function createContext(
 	overrides: Partial<RuntimeHost> = {},
@@ -339,5 +343,43 @@ describe("run handlers", () => {
 			payload: { applied: true },
 		});
 		expect(abort).toHaveBeenCalledWith("session-1", "user cancelled");
+	});
+
+	it("names the offending field when a session hook payload is invalid", async () => {
+		const dispatchHookEvent = vi.fn().mockResolvedValue(undefined);
+		const ctx = createContext({ dispatchHookEvent });
+
+		const reply = await handleSessionHook(ctx, {
+			version: "v1",
+			command: "session.hook",
+			requestId: "req-hook-invalid",
+			clientId: "client-1",
+			sessionId: "session-1",
+			payload: {
+				payload: {
+					clineVersion: "1.0.0",
+					hookName: "agent_error",
+					timestamp: "2026-01-01T00:00:00.000Z",
+					taskId: "task-1",
+					workspaceRoots: [],
+					userId: "user-1",
+					agent_id: "agent-1",
+					parent_agent_id: null,
+					iteration: 1,
+					error: {},
+				},
+			},
+		});
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: { code: "invalid_hook_payload" },
+		});
+		expect(reply.error?.message).toContain(
+			"session.hook requires a valid hook event payload",
+		);
+		expect(reply.error?.message).toContain("error.name:");
+		expect(reply.error?.message).toContain("error.message:");
+		expect(dispatchHookEvent).not.toHaveBeenCalled();
 	});
 });

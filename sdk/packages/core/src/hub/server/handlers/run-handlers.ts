@@ -4,7 +4,7 @@ import type {
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
-import { parseHookEventPayload } from "../../../hooks";
+import { type HookEventPayload, HookEventPayloadSchema } from "../../../hooks";
 import {
 	isSessionNotFoundError,
 	SESSION_NOT_FOUND_ERROR_CODE,
@@ -405,14 +405,21 @@ export async function handleSessionHook(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): Promise<HubReplyEnvelope> {
-	const parsed = parseHookEventPayload(envelope.payload?.payload);
-	if (!parsed) {
+	const parsed = HookEventPayloadSchema.safeParse(envelope.payload?.payload);
+	if (!parsed.success) {
+		const details = parsed.error.issues
+			.slice(0, 3)
+			.map((issue) => {
+				const path = issue.path.join(".");
+				return path ? `${path}: ${issue.message}` : issue.message;
+			})
+			.join("; ");
 		return errorReply(
 			envelope,
 			"invalid_hook_payload",
-			"session.hook requires a valid hook event payload",
+			`session.hook requires a valid hook event payload: ${details}`,
 		);
 	}
-	await ctx.sessionHost.dispatchHookEvent(parsed);
+	await ctx.sessionHost.dispatchHookEvent(parsed.data as HookEventPayload);
 	return okReply(envelope, { applied: true });
 }
