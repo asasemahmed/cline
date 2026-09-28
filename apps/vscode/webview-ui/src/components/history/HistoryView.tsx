@@ -11,18 +11,11 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { formatSize } from "@/utils/format"
 import ViewHeader from "../common/ViewHeader"
+import { groupHistoryTasks, type SortOption } from "./groupHistoryTasks"
 import HistoryViewItem from "./HistoryViewItem"
 
 type HistoryViewProps = {
 	onDone: () => void
-}
-
-type SortOption = "newest" | "oldest" | "mostExpensive" | "mostTokens" | "mostRelevant"
-
-const isToday = (timestamp: number): boolean => {
-	const date = new Date(timestamp)
-	const today = new Date()
-	return today.toDateString() === date.toDateString()
 }
 
 const HISTORY_FILTERS = {
@@ -321,41 +314,7 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 
 	// Group tasks into "Today" and "Older" (only for date-based sorts)
 	const { groupedTasks, groupCounts, groupLabels } = useMemo(() => {
-		const isDateSort = sortOption === "newest" || sortOption === "oldest"
-
-		if (!isDateSort) {
-			// No grouping for non-date sorts
-			return {
-				groupedTasks: taskHistorySearchResults,
-				groupCounts: [taskHistorySearchResults.length],
-				groupLabels: [] as string[],
-			}
-		}
-
-		const todayTasks: any[] = []
-		const olderTasks: any[] = []
-
-		taskHistorySearchResults.forEach((task) => {
-			if (isToday(task.ts)) {
-				todayTasks.push(task)
-			} else {
-				olderTasks.push(task)
-			}
-		})
-
-		const groups: { tasks: any[]; label: string }[] = []
-		if (todayTasks.length > 0) {
-			groups.push({ tasks: todayTasks, label: "Today" })
-		}
-		if (olderTasks.length > 0) {
-			groups.push({ tasks: olderTasks, label: "Older" })
-		}
-
-		return {
-			groupedTasks: groups.flatMap((g) => g.tasks),
-			groupCounts: groups.map((g) => g.tasks.length),
-			groupLabels: groups.map((g) => g.label),
-		}
+		return groupHistoryTasks(taskHistorySearchResults, sortOption)
 	}, [taskHistorySearchResults, sortOption])
 
 	// Calculate total size of selected items
