@@ -1,6 +1,13 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { canRestoreWorkspaceFromMessage, filterVisibleMessages, groupLowStakesTools, isToolGroup } from "./messageUtils"
+import {
+	canRestoreWorkspaceFromMessage,
+	filterVisibleMessages,
+	groupLowStakesTools,
+	groupMessages,
+	isToolGroup,
+	parseApiReqInfo,
+} from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
@@ -165,5 +172,63 @@ describe("groupLowStakesTools", () => {
 		expect(grouped).toHaveLength(2)
 		expect(grouped[0]).toMatchObject({ type: "say", say: "reasoning", text: "Planning next read" })
 		expect(isToolGroup(grouped[1])).toBe(true)
+	})
+})
+
+describe("groupMessages", () => {
+	it("does not throw on malformed api_req_started payload in a browser session", () => {
+		const messages: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "browser_action_launch" },
+			{ ts: 2, type: "say", say: "api_req_started", text: "{not-json" },
+			{
+				ts: 3,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({ streamingFailedMessage: "connection lost" }),
+			},
+			{
+				ts: 4,
+				type: "say",
+				say: "browser_action",
+				text: JSON.stringify({ action: "close" }),
+			},
+		]
+
+		expect(() => groupMessages(filterVisibleMessages(messages))).not.toThrow()
+		const grouped = groupMessages(filterVisibleMessages(messages))
+		expect(grouped).toHaveLength(1)
+		expect(Array.isArray(grouped[0])).toBe(true)
+		expect(grouped[0] as ClineMessage[]).toHaveLength(4)
+	})
+})
+
+describe("parseApiReqInfo", () => {
+	it("parses valid JSON into ClineApiReqInfo", () => {
+		const data = {
+			request: "GET /api",
+			cost: 0.05,
+			tokensIn: 100,
+			tokensOut: 50,
+			cancelReason: "user_cancelled" as const,
+			streamingFailedMessage: "failed",
+		}
+		expect(parseApiReqInfo(JSON.stringify(data))).toEqual(data)
+	})
+
+	it("returns undefined for undefined or empty string", () => {
+		expect(parseApiReqInfo(undefined)).toBeUndefined()
+		expect(parseApiReqInfo("")).toBeUndefined()
+	})
+
+	it("returns undefined for malformed JSON without throwing", () => {
+		expect(parseApiReqInfo("{not-json")).toBeUndefined()
+		expect(parseApiReqInfo("{")).toBeUndefined()
+	})
+
+	it("returns undefined for non-object JSON values", () => {
+		expect(parseApiReqInfo("123")).toBeUndefined()
+		expect(parseApiReqInfo('"string"')).toBeUndefined()
+		expect(parseApiReqInfo("true")).toBeUndefined()
+		expect(parseApiReqInfo("null")).toBeUndefined()
 	})
 })

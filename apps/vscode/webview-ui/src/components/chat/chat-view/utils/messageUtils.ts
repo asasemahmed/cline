@@ -3,6 +3,7 @@
  */
 
 import type {
+	ClineApiReqInfo,
 	ClineAskQuestion,
 	ClineMessage,
 	ClinePlanModeResponse,
@@ -10,6 +11,24 @@ import type {
 	ClineSayTool,
 } from "@shared/ExtensionMessage"
 import { FileIcon, FolderOpenDotIcon, FolderOpenIcon, SearchIcon, ShapesIcon, WrenchIcon } from "lucide-react"
+
+/**
+ * Safely parse ClineApiReqInfo from message text, returning undefined if invalid or absent.
+ */
+export function parseApiReqInfo(text: string | undefined): ClineApiReqInfo | undefined {
+	if (!text) {
+		return undefined
+	}
+	try {
+		const parsed = JSON.parse(text)
+		if (typeof parsed === "object" && parsed !== null) {
+			return parsed as ClineApiReqInfo
+		}
+		return undefined
+	} catch {
+		return undefined
+	}
+}
 
 /**
  * Low-stakes tool types that should be grouped together
@@ -225,8 +244,8 @@ export function groupMessages(visibleMessages: ClineMessage[]): (ClineMessage | 
 				// get last api_req_started in currentGroup to check if it's cancelled
 				const lastApiReqStarted = [...currentGroup].reverse().find((m) => m.say === "api_req_started")
 				if (lastApiReqStarted?.text != null) {
-					const info = JSON.parse(lastApiReqStarted.text)
-					const isCancelled = info.cancelReason != null
+					const info = parseApiReqInfo(lastApiReqStarted.text)
+					const isCancelled = info?.cancelReason != null
 					if (isCancelled) {
 						endBrowserSession()
 						result.push(message)

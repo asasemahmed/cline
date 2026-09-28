@@ -1,7 +1,6 @@
 import { GeneratedMediaContent } from "@cline/ui"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import {
-	ClineApiReqInfo,
 	ClineAskQuestion,
 	ClineAskUseMcpServer,
 	ClineMessage,
@@ -35,7 +34,7 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { isOptionsAskActive } from "@/components/chat/chat-view/shared/buttonConfig"
-import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
+import { canRestoreWorkspaceFromMessage, parseApiReqInfo } from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -204,8 +203,8 @@ export const ChatRowContent = memo(
 
 		const [cost, _apiReqCancelReason, apiReqStreamingFailedMessage] = useMemo(() => {
 			if (message.text != null && message.say === "api_req_started") {
-				const info: ClineApiReqInfo = JSON.parse(message.text)
-				return [info.cost, info.cancelReason, info.streamingFailedMessage]
+				const info = parseApiReqInfo(message.text)
+				return [info?.cost, info?.cancelReason, info?.streamingFailedMessage]
 			}
 			return [undefined, undefined, undefined]
 		}, [message.text, message.say])
