@@ -91,11 +91,15 @@ async function listFilesWithRg(cwd: string): Promise<Set<string>> {
 		let stdout = "";
 		let stderr = "";
 
-		child.stdout.on("data", (chunk: Buffer | string) => {
-			stdout += chunk.toString();
+		// Decode incrementally so a multibyte file name split across chunks
+		// is kept whole instead of becoming U+FFFD on each side of the split.
+		child.stdout.setEncoding("utf8");
+		child.stderr.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
+			stdout += chunk;
 		});
-		child.stderr.on("data", (chunk: Buffer | string) => {
-			stderr += chunk.toString();
+		child.stderr.on("data", (chunk: string) => {
+			stderr += chunk;
 		});
 		child.on("error", reject);
 		child.on("close", (code: number | null) => {

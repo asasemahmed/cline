@@ -30,6 +30,29 @@ describe("runSubprocessEvent", () => {
 		expect(result?.parsedJson).toEqual({ cancel: true });
 	});
 
+	it("decodes multibyte UTF-8 characters split across stdout chunks", async () => {
+		const context = "caf\u00e9 \u65e5\u672c \u{1F600}";
+		const output = `HOOK_CONTROL\t${JSON.stringify({ context })}\n`;
+		// One byte per write, so every 2-, 3- and 4-byte character reaches the
+		// parent split across separate `data` events.
+		const script = [
+			`const bytes = Buffer.from("${Buffer.from(output).toString("hex")}", "hex");`,
+			"let i = 0;",
+			"const next = () => {",
+			"	if (i >= bytes.length) return;",
+			"	process.stdout.write(bytes.subarray(i, ++i));",
+			"	setTimeout(next, 1);",
+			"};",
+			"next();",
+		].join("\n");
+		const result = await runSubprocessEvent(
+			{},
+			{ command: [process.execPath, "-e", script], timeoutMs: 10_000 },
+		);
+		expect(result?.stdout).toBe(output);
+		expect(result?.parsedJson).toEqual({ context });
+	});
+
 	it("times out a child across its entire lifecycle", async () => {
 		const result = await runSubprocessEvent(
 			{ payload: "x".repeat(64 * 1024) },

@@ -208,11 +208,15 @@ export async function runSubprocessEvent(
 		child.kill("SIGKILL");
 		throw new Error("runSubprocessEvent failed to create stdout/stderr pipes");
 	}
-	child.stdout?.on("data", (chunk: Buffer | string) => {
-		stdout += chunk.toString();
+	// Decode incrementally so a multibyte character split across chunks is
+	// kept whole instead of becoming U+FFFD on each side of the split.
+	child.stdout?.setEncoding("utf8");
+	child.stderr?.setEncoding("utf8");
+	child.stdout?.on("data", (chunk: string) => {
+		stdout += chunk;
 	});
-	child.stderr?.on("data", (chunk: Buffer | string) => {
-		stderr += chunk.toString();
+	child.stderr?.on("data", (chunk: string) => {
+		stderr += chunk;
 	});
 
 	// Install all lifecycle listeners before yielding. Fast commands can close

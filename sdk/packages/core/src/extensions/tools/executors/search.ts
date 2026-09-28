@@ -227,11 +227,14 @@ function searchWithRipgrep(
 			finalize(null);
 		});
 
-		child.stdout.on("data", (chunk: Buffer | string) => {
+		// Decode incrementally so a multibyte character split across chunks is
+		// kept whole instead of becoming U+FFFD on each side of the split.
+		child.stdout.setEncoding("utf8");
+		child.stdout.on("data", (chunk: string) => {
 			if (stdout.length > MAX_RG_STDOUT_CHARS) {
 				return;
 			}
-			stdout += chunk.toString();
+			stdout += chunk;
 		});
 
 		child.stderr.on("data", () => {
